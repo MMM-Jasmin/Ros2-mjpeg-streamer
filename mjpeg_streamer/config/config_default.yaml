@@ -1,0 +1,24 @@
+# Configuration for object detection node
+/mjpeg_streamer:
+  ros__parameters:
+    # print debug output
+    debug: true
+    # rotate images?
+    rotation: 0
+    # output image size
+    out_width: 1080
+    out_height: 1920       
+    # image source topic
+    topic: "/background/color_full"
+    fps_topic: "/websocket/fps"
+    max_fps: 30.0
+    # output port
+    port: 7777
+    print_fps: true
+    FPS_STR: "FPS"
+    # Use sensor data Quality of Service for messages
+    qos_sensor_data: true
+    # Message queue size
+    qos_history_depth: 5
+
+    
