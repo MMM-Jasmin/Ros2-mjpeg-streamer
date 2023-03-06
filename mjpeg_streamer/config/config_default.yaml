@@ -1,17 +1,11 @@
 # Configuration for object detection node
 /mjpeg_streamer:
-  ros__parameters:
-    # print debug output
-    debug: true
-    # rotate images?
-    rotation: 0
-    # output image size
-    out_width: 1080
-    out_height: 1920       
+  ros__parameters: 
     # image source topic
-    topic: "/background/color_full"
+    topic: ["/background/color_full", "/background/color"]
+    topic_sel_word: ["full", "background"]
+    topic_sel_topic : "/websocket/sel"
     fps_topic: "/websocket/fps"
-    max_fps: 30.0
     # output port
     port: 7777
     print_fps: true

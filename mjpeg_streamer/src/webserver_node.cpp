@@ -8,19 +8,15 @@ const double ONE_SECOND            = 1000.0; // One second in milliseconds
  */
 WebserverNode::WebserverNode(const std::string &name) : Node(name, rclcpp::NodeOptions().use_intra_process_comms(false)) {
 
-	this->declare_parameter("rotation", 0);
-	this->declare_parameter("debug", false);
-	this->declare_parameter("topic", "");
+	this->declare_parameter("topic", std::vector<std::string>());
+	this->declare_parameter("topic_sel_word", std::vector<std::string>());
+	this->declare_parameter("topic_sel_topic", "");
 	this->declare_parameter("fps_topic", "test/fps");
-	this->declare_parameter("max_fps", 30.0f);
 	this->declare_parameter("port", 7777);
-	this->declare_parameter("out_width", 1080);
-	this->declare_parameter("out_height", 1920);
 	this->declare_parameter("print_fps", true);
 	this->declare_parameter("FPS_STR", "FPS" );
 	this->declare_parameter("qos_sensor_data", true);
 	this->declare_parameter("qos_history_depth", 10);
-	
 }
 
 /**
@@ -28,28 +24,24 @@ WebserverNode::WebserverNode(const std::string &name) : Node(name, rclcpp::NodeO
  */
 void WebserverNode::init() {
 
-	std::string ros_topic, fps_topic;
+	std::string fps_topic, topic_sel_topic;
 	bool qos_sensor_data;
 	int qos_history_depth;
 	int output_port;
 
-	this->get_parameter("topic", ros_topic);
+	this->get_parameter("topic", m_ros_topic);
+	this->get_parameter("topic_sel_word", m_ros_topic_sel);
+	this->get_parameter("topic_sel_topic", topic_sel_topic);
 	this->get_parameter("fps_topic", fps_topic);
 	this->get_parameter("qos_sensor_data", qos_sensor_data);
 	this->get_parameter("qos_history_depth", qos_history_depth);
 	this->get_parameter("port", output_port);
-	
-	
-	this->get_parameter("max_fps", m_maxFPS);
-	this->get_parameter("out_width", m_out_width);
-	this->get_parameter("out_height", m_out_height);
-	this->get_parameter("rotation", m_rotation);
 	this->get_parameter("FPS_STR", m_FPS_STR );
 	this->get_parameter("print_fps", m_print_fps);
 
 
 	if(qos_sensor_data){
-		std::cout << "using ROS2 qos_sensor_data" << std::endl;
+		RCLCPP_INFO(this->get_logger(), "using ROS2 qos_sensor_data");
 		m_qos_profile = rclcpp::SensorDataQoS();
 	}
 
@@ -69,21 +61,59 @@ void WebserverNode::init() {
 	//m_qos_profile = m_qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
 	//m_qos_profile = m_qos_profile.deadline(std::chrono::nanoseconds(static_cast<int>(1e9 / 30)));
 	
-	// Create mjpeg writer with a choosen port.
-	// TODO maybe parameterize the port ???
-	//m_mjpeg_writer_ptr = new MJPEGWriter(output_port);
 	m_streamer_ptr = new nadjieb::MJPEGStreamer();
 	m_streamer_ptr->start(output_port);
-	//center_writer_thr = new std::thread(write_to_mjpeg_writer,std::ref(post_draw_image));
-	//mjpeg_writer_ptr->start(); //Starts the HTTP Server on the selected port
 
-	m_image_small_subscription = this->create_subscription<sensor_msgs::msg::Image>( ros_topic, m_qos_profile, std::bind(&WebserverNode::imageSmallCallback, this, std::placeholders::_1));
-	//cv::namedWindow(m_window_name_image_small, cv::WINDOW_AUTOSIZE);
+	rclcpp::CallbackGroup::SharedPtr my_callback_cam_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+	rclcpp::CallbackGroup::SharedPtr my_callback_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
+	rclcpp::SubscriptionOptions options;
+	
+	m_cam_options.callback_group = my_callback_cam_group;
+	options.callback_group = my_callback_group;
+
+	RCLCPP_INFO(this->get_logger(), "subscribing to %s", m_ros_topic[m_topic_index].c_str());
+
+	m_image_subscription = this->create_subscription<sensor_msgs::msg::Image>(m_ros_topic[m_topic_index], m_qos_profile, std::bind(&WebserverNode::imageSmallCallback, this, std::placeholders::_1), m_cam_options);
+	m_topic_sel_subscription = this->create_subscription<std_msgs::msg::String>(topic_sel_topic, m_qos_profile, std::bind(&WebserverNode::topicSelCallback, this, std::placeholders::_1), options);
+	
 	m_fps_publisher    		= this->create_publisher<std_msgs::msg::String>(fps_topic, m_qos_profile_sysdef);
 
 	m_elapsedTime = 0;
 	m_timer.Start();
+}
+
+void WebserverNode::topicSelCallback(std_msgs::msg::String::SharedPtr topic_msg) {
+
+	std::string str(topic_msg->data.data());
+	if (str == "TOGGLE"){
+		
+		m_topic_index++;
+		m_topic_index = m_topic_index % m_ros_topic_sel.size();
+		m_image_subscription.reset();
+		m_image_subscription = this->create_subscription<sensor_msgs::msg::Image>(m_ros_topic[m_topic_index], m_qos_profile, std::bind(&WebserverNode::imageSmallCallback, this, std::placeholders::_1), m_cam_options);
+		RCLCPP_INFO(this->get_logger(), "toggling stream to %s", m_ros_topic[m_topic_index].c_str());
+
+	} else {
+
+		auto it = std::find(m_ros_topic_sel.begin(), m_ros_topic_sel.end(), topic_msg->data.data());
+		if (it == m_ros_topic_sel.end())
+		{
+			RCLCPP_INFO(this->get_logger(), "%s: not in list of topics..", topic_msg->data.data());
+		} else {
+  			auto index = std::distance(m_ros_topic_sel.begin(), it);
+			if (index == m_topic_index){
+				RCLCPP_INFO(this->get_logger(), "already on topic %s" , m_ros_topic[index].c_str());
+			} else {
+				RCLCPP_INFO(this->get_logger(),  "switching to topic %s" , m_ros_topic[index].c_str());
+				m_topic_index = index;
+
+				m_image_subscription.reset();
+				m_image_subscription = this->create_subscription<sensor_msgs::msg::Image>(m_ros_topic[index], m_qos_profile, std::bind(&WebserverNode::imageSmallCallback, this, std::placeholders::_1), m_cam_options);
+			}
+		}
+	}
+
 }
 
 
@@ -93,23 +123,6 @@ void WebserverNode::init() {
  */
 void WebserverNode::imageSmallCallback(sensor_msgs::msg::Image::SharedPtr img_msg) {
 
-	/*
-	if(!m_color_image_last.empty()){
-		m_color_image_for_send = m_color_image_last;
-		m_mjpeg_writer_ptr->write(m_color_image_for_send);
-		if(!m_webservice_started){
-			m_mjpeg_writer_ptr->start(); //Starts the HTTP Server on the selected port
-			m_webservice_started = true;
-		}	
-	}
-
-	cv::Size image_size(static_cast<int>(img_msg->width), static_cast<int>(img_msg->height));
-	cv::Mat color_image(image_size, CV_8UC3, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
-	
-	cv::resize(color_image, color_image, Size(m_out_width, m_out_height), INTER_LINEAR);
-	cv::cvtColor(color_image, m_color_image_last, cv::COLOR_RGB2BGR); 
-
-	*/
 	std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 100};
 
 	cv::Size image_size(static_cast<int>(img_msg->width), static_cast<int>(img_msg->height));

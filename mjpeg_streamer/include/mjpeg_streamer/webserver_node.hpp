@@ -29,21 +29,17 @@ public:
 	void init();
 
 private:
-
-	float m_maxFPS;
-
-	int m_out_width, m_out_height, m_rotation;
-
 	nadjieb::MJPEGStreamer* m_streamer_ptr;
 
 	bool m_print_fps;
 	uint64_t m_frameCnt = 0;
 	std::string m_FPS_STR = "";
 
+	std::vector<std::string> m_ros_topic, m_ros_topic_sel;
+	int m_topic_index = 0;
+
 	Timer m_timer;        // Timer used to measure the time required for one iteration
 	double m_elapsedTime; // Sum of the elapsed time, used to check if one second has passed
-
-	std::string m_window_name_image_small	= "Image_small_Frame";
 
 	time_point m_callback_time = hires_clock::now();
 	time_point m_callback_time_image_small = hires_clock::now();
@@ -53,14 +49,16 @@ private:
 	double m_loop_duration_image_small = 0.0;
 	double m_loop_duration_depth = 0.0;
 
-	cv::Mat m_color_image_for_send, m_color_image_last;
-
 	rclcpp::QoS m_qos_profile = rclcpp::SystemDefaultsQoS();
 	rclcpp::QoS m_qos_profile_sysdef = rclcpp::SystemDefaultsQoS();
 
-	rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_small_subscription;
+	rclcpp::SubscriptionOptions m_cam_options;
+
+	rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_subscription;
+	rclcpp::Subscription<std_msgs::msg::String>::SharedPtr m_topic_sel_subscription;
 	rclcpp::Publisher<std_msgs::msg::String>::SharedPtr m_fps_publisher 	=	 nullptr;
 
+	void topicSelCallback(std_msgs::msg::String::SharedPtr img_msg);
 	void imageSmallCallback(sensor_msgs::msg::Image::SharedPtr img_msg);
 	void PrintFPS(const float fps, const float itrTime);
 	void CheckFPS(uint64_t* pFrameCnt);
