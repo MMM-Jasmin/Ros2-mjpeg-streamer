@@ -126,14 +126,21 @@ void WebserverNode::imageSmallCallback(sensor_msgs::msg::Image::SharedPtr img_ms
 	std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 100};
 
 	cv::Size image_size(static_cast<int>(img_msg->width), static_cast<int>(img_msg->height));
-	cv::Mat color_image(image_size, CV_8UC3, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
-	cv::cvtColor(color_image, color_image, cv::COLOR_RGB2BGR); 
+	if(img_msg->encoding == "rgb8"){
+		cv::Mat color_image(image_size, CV_8UC3, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
+		cv::cvtColor(color_image, color_image, cv::COLOR_RGB2BGR); 
+		// http://localhost:8080/bgr
+		std::vector<uchar> buff_bgr;
+		cv::imencode(".jpg", color_image, buff_bgr, params);
+		m_streamer_ptr->publish("/bgr", std::string(buff_bgr.begin(), buff_bgr.end()));
+	}else{
+		cv::Mat depth_image(image_size, CV_16UC1, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
+		cv::convertScaleAbs(depth_image, depth_image, 0.1);
 
-	// http://localhost:8080/bgr
-	std::vector<uchar> buff_bgr;
-	cv::imencode(".jpg", color_image, buff_bgr, params);
-	m_streamer_ptr->publish("/bgr", std::string(buff_bgr.begin(), buff_bgr.end()));
-
+		std::vector<uchar> buff_bgr;
+		cv::imencode(".jpg", depth_image, buff_bgr, params);
+		m_streamer_ptr->publish("/bgr", std::string(buff_bgr.begin(), buff_bgr.end()));
+	}
 	m_frameCnt++;
 	CheckFPS(&m_frameCnt);
 }
