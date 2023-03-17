@@ -2,8 +2,8 @@
 /mjpeg_streamer:
   ros__parameters: 
     # image source topic
-    topic: ["/background/color_full", "/background/color", "/background/depth", "/background/depth_limited"]
-    topic_sel_word: ["full", "background","depth", "depth_limited"]
+    topic: ["/background/color_full", "/background/color_limited", "/background/depth", "/background/depth_limited"]
+    topic_sel_word: ["full", "background","depth", "depth_limited" ]
     topic_sel_topic : "/websocket/sel"
     fps_topic: "/websocket/fps"
     # output port
