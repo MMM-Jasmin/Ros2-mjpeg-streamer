@@ -49,13 +49,15 @@ void WebserverNode::init() {
 	m_qos_profile = m_qos_profile.keep_last(qos_history_depth);
 	//m_qos_profile = m_qos_profile.lifespan(std::chrono::milliseconds(500));
 	m_qos_profile = m_qos_profile.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
-	m_qos_profile = m_qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
+	//m_qos_profile = m_qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
+	m_qos_profile = m_qos_profile.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
+	
 	
 
 	m_qos_profile_sysdef = m_qos_profile_sysdef.keep_last(qos_history_depth);
 	//m_qos_profile_sysdef = m_qos_profile_sysdef.lifespan(std::chrono::milliseconds(500));
 	//m_qos_profile_sysdef = m_qos_profile_sysdef.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
-	m_qos_profile_sysdef = m_qos_profile_sysdef.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
+	//m_qos_profile_sysdef = m_qos_profile_sysdef.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
 	//m_qos_profile_sysdef = m_qos_profile_sysdef.reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT );
 	//m_qos_profile = m_qos_profile.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
 	//m_qos_profile = m_qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
@@ -75,7 +77,8 @@ void WebserverNode::init() {
 	RCLCPP_INFO(this->get_logger(), "subscribing to %s", m_ros_topic[m_topic_index].c_str());
 
 	m_image_subscription = this->create_subscription<sensor_msgs::msg::Image>(m_ros_topic[m_topic_index], m_qos_profile, std::bind(&WebserverNode::imageSmallCallback, this, std::placeholders::_1), m_cam_options);
-	m_topic_sel_subscription = this->create_subscription<std_msgs::msg::String>(topic_sel_topic, m_qos_profile, std::bind(&WebserverNode::topicSelCallback, this, std::placeholders::_1), options);
+	
+	m_topic_sel_subscription = this->create_subscription<std_msgs::msg::String>(topic_sel_topic, m_qos_profile_sysdef, std::bind(&WebserverNode::topicSelCallback, this, std::placeholders::_1), options);
 	
 	m_fps_publisher    		= this->create_publisher<std_msgs::msg::String>(fps_topic, m_qos_profile_sysdef);
 
