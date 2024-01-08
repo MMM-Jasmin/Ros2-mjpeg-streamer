@@ -64,10 +64,10 @@ void WebserverNode::init() {
 	//m_qos_profile = m_qos_profile.deadline(std::chrono::nanoseconds(static_cast<int>(1e9 / 30)));
 	
 	m_streamer_ptr = new nadjieb::MJPEGStreamer();
-	m_streamer_ptr->start(output_port);
+	m_streamer_ptr->start(output_port,3);
 
-	rclcpp::CallbackGroup::SharedPtr my_callback_cam_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-	rclcpp::CallbackGroup::SharedPtr my_callback_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+	rclcpp::CallbackGroup::SharedPtr my_callback_cam_group = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+	rclcpp::CallbackGroup::SharedPtr my_callback_group = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
 	rclcpp::SubscriptionOptions options;
 	
@@ -126,24 +126,29 @@ void WebserverNode::topicSelCallback(std_msgs::msg::String::SharedPtr topic_msg)
  */
 void WebserverNode::imageSmallCallback(sensor_msgs::msg::Image::SharedPtr img_msg) {
 
-	std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 100};
+	std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 100, cv::IMWRITE_JPEG_LUMA_QUALITY, 100, cv::IMWRITE_JPEG_CHROMA_QUALITY , 100};
+	//std::vector<int> params = {};
 
 	cv::Size image_size(static_cast<int>(img_msg->width), static_cast<int>(img_msg->height));
-	if(img_msg->encoding == "rgb8"){
-		cv::Mat color_image(image_size, CV_8UC3, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
-		cv::cvtColor(color_image, color_image, cv::COLOR_RGB2BGR); 
-		// http://localhost:8080/bgr
-		std::vector<uchar> buff_bgr;
-		cv::imencode(".jpg", color_image, buff_bgr, params);
-		m_streamer_ptr->publish("/bgr", std::string(buff_bgr.begin(), buff_bgr.end()));
-	}else{
-		cv::Mat depth_image(image_size, CV_16UC1, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
-		cv::convertScaleAbs(depth_image, depth_image, 0.1);
 
-		std::vector<uchar> buff_bgr;
-		cv::imencode(".jpg", depth_image, buff_bgr, params);
-		m_streamer_ptr->publish("/bgr", std::string(buff_bgr.begin(), buff_bgr.end()));
+	std::vector<uchar> buff_bgr;
+
+	if(img_msg->encoding == "rgb8"){
+		cv::Mat tmp_image(image_size, CV_8UC3, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
+		cv::cvtColor(tmp_image, tmp_image, cv::COLOR_RGB2BGR); 
+		cv::imencode(".jpeg", tmp_image, buff_bgr, params);
+		//cv::imshow("Display window", tmp_image);
+	}else{
+		cv::Mat tmp_image(image_size, CV_16UC1, (void *)img_msg->data.data(), cv::Mat::AUTO_STEP);
+		cv::convertScaleAbs(tmp_image, tmp_image, 0.1);
+		cv::imencode(".jpeg", tmp_image, buff_bgr, params);
+		//cv::imshow("Display window", tmp_image);
 	}
+
+	m_streamer_ptr->publish("/bgr", std::string(buff_bgr.begin(), buff_bgr.end()));
+
+	//cv::waitKey(1); // Wait for a keystroke in the window
+
 	m_frameCnt++;
 	CheckFPS(&m_frameCnt);
 }

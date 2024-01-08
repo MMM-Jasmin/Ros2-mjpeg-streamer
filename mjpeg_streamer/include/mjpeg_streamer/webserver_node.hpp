@@ -30,7 +30,7 @@ public:
 
 private:
 	nadjieb::MJPEGStreamer* m_streamer_ptr;
-
+	
 	bool m_print_fps;
 	uint64_t m_frameCnt = 0;
 	std::string m_FPS_STR = "";
